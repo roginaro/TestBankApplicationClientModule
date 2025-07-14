@@ -35,123 +35,111 @@ namespace BankApplicationClientModule.Tests
             }
         }
 
-
-
-        private IClientRepository CreateClientRepository()
+        private ClientModuleRepositorie CreateClientModuleDataAccess()
         {
             var context = new ClientModuleDBContext(); 
-            return new ClientModuleRepositorie(context);
+            return new ClientModuleRepositorie();
         }
-
 
 
         [Test]
-        public async Task CreateDB_Test()
+        public void ClientModuleDBdao_NewClient_Test()
         {
-            var dao = CreateClientRepository();
-            var client = await dao.GetClientByIdAsync(1); 
-            Assert.IsNotNull(client);
+            int cnt = 0;
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                cnt = dao.GetAllClients().Count();
+                Assert.IsTrue(dao.SaveNewClient(new Model.BankClient() { Address = "Address", FirstName = "John", LastName = "Tester" }));
+                Assert.AreEqual(cnt + 1, dao.GetAllClients().Count());
+            }
+
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                Assert.AreEqual(cnt + 1, dao.GetAllClients().Count());
+            }
+        }
+
+        [Test]
+        public void ClientModuleDBdao_StartTracking_Test()
+        {
+            Model.BankClient client;
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                Assert.AreEqual(3, dao.GetAllClients().Count());
+                client = dao.GetAllClients().FirstOrDefault();
+                client.FirstName = "ABC";
+
+                var detached = new Model.BankClient() { Id = client.Id };
+                detached = dao.StartTracking(detached);
+
+                Assert.AreNotEqual(client, detached);
+                detached.FirstName = "XYZ";
+
+                dao.DBContext.SaveChanges();
+            }
+
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                var detached = dao.GetAllClients().Where(w => w.Id == client.Id).FirstOrDefault();
+                Assert.AreEqual("XYZ", detached.FirstName); // XYZ overwrite data from DB
+            }
         }
 
 
-        //[Test]
-        //public void ClientModuleDBdao_NewClient_Test()
-        //{
-        //    int cnt = 0;
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        cnt = dao.GetAllClients().Count();
-        //        Assert.IsTrue(dao.SaveNewClient(new Model.BankClient() { Address = "Address", FirstName = "John", LastName = "Tester" }));
-        //        Assert.AreEqual(cnt + 1, dao.GetAllClients().Count());
-        //    }
+        [Test]
+        public void ClientModuleDBdao_StartTrackingNew_Test()
+        {
+            Model.BankClient client;
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                Assert.AreEqual(3, dao.GetAllClients().Count());
+                client = new BankClient()
+                {
+                    FirstName = "DEF"
+                };
 
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        Assert.AreEqual(cnt + 1, dao.GetAllClients().Count());
-        //    }
-        //}
+                client = dao.StartTracking(client);
 
-        //[Test]
-        //public void ClientModuleDBdao_StartTracking_Test()
-        //{
-        //    Model.BankClient client;
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        Assert.AreEqual(3, dao.GetAllClients().Count());
-        //        client = dao.GetAllClients().FirstOrDefault(); // tracked client
-        //        client.FirstName = "ABC";
+                dao.DBContext.SaveChanges();
+            }
 
-        //        var detached = new Model.BankClient() { Id = client.Id };
-        //        detached = dao.StartTracking(detached);
-
-        //        Assert.AreNotEqual(client, detached);
-        //        detached.FirstName = "XYZ";
-
-        //        dao.DBContext.SaveChanges();
-        //    }
-
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        var detached = dao.GetAllClients().Where(w => w.Id == client.Id).FirstOrDefault();
-        //        Assert.AreEqual("XYZ", detached.FirstName); // XYZ overwrite data from DB
-        //    }
-        //}
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                var detached = dao.GetAllClients().Where(w => w.Id == client.Id).FirstOrDefault();
+                Assert.AreEqual("DEF", detached.FirstName);
+            }
+        }
 
 
-        //[Test]
-        //public void ClientModuleDBdao_StartTrackingNew_Test()
-        //{
-        //    Model.BankClient client;
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        Assert.AreEqual(3, dao.GetAllClients().Count());
-        //        client = new BankClient()
-        //        {
-        //            FirstName = "DEF"
-        //        };
+        [Test]
+        public void ClientModuleDBdao_GetAllClientsThatHaveAtLeastOneAccount_Test()
+        {
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                //Assert.AreEqual(3, dao.GetAllClientsThatHaveAtLeastOneAccountAsync().Result.Count);
+                Assert.AreEqual(5, dao.GetAllAccounts().Count);
 
-        //        client = dao.StartTracking(client);
+                var clients = dao.GetAllClientsThatHaveAtLeastOneAccountDetached();
+                //Assert.AreEqual(2, clients.Count);
+                Assert.AreEqual(3, clients.Where(w => w.FirstName == "Paul").Select(s => s.ClientAccounts.Count).FirstOrDefault());
+                Assert.AreEqual(2, clients.Where(w => w.FirstName == "Anna").Select(s => s.ClientAccounts.Count).FirstOrDefault());
+            }
+        }
 
-        //        dao.DBContext.SaveChanges();
-        //    }
+        [Test]
+        public void ClientModuleDBdao_IsClientTrackedByEF_Test()
+        {
+            BankClient client = null;
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                client = dao.GetAllClients().FirstOrDefault();
+                Assert.IsTrue(dao.IsClientTrackedByEF(client));
+            }
 
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        var detached = dao.GetAllClients().Where(w => w.Id == client.Id).FirstOrDefault();
-        //        Assert.AreEqual("DEF", detached.FirstName);
-        //    }
-        //}
-
-
-        //[Test]
-        //public void ClientModuleDBdao_GetAllClientsThatHaveAtLeastOneAccount_Test()
-        //{
-        //    using (var dao = CreateClientRepository())
-        //    {
-        //        Assert.AreEqual(3, dao.GetAllClientsThatHaveAtLeastOneAccountAsync().Result;
-        //        Assert.AreEqual(5, dao.GetAllAccounts().Count);
-
-        //        var clients = dao.GetAllClientsThatHaveAtLeastOneAccountDetached();
-        //        Assert.AreEqual(2, clients.Count);
-        //        Assert.AreEqual(3, clients.Where(w => w.FirstName == "Paul").Select(s => s.ClientAccounts.Count).FirstOrDefault());
-        //        Assert.AreEqual(2, clients.Where(w => w.FirstName == "Anna").Select(s => s.ClientAccounts.Count).FirstOrDefault());
-        //    }
-        //}
-
-        //[Test]
-        //public void ClientModuleDBdao_IsClientTrackedByEF_Test()
-        //{
-        //    BankClient client = null;
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        client = dao.GetAllClients().FirstOrDefault();
-        //        Assert.IsTrue(dao.IsClientTrackedByEF(client));
-        //    }
-
-        //    using (var dao = CreateClientModuleDataAccess())
-        //    {
-        //        Assert.IsFalse(dao.IsClientTrackedByEF(client));
-        //    }
-        //}
+            using (var dao = CreateClientModuleDataAccess())
+            {
+                Assert.IsFalse(dao.IsClientTrackedByEF(client));
+            }
+        }
     }
 }
